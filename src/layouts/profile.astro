@@ -1,0 +1,83 @@
+---
+import "../styles/global.css";
+import Main from "./main.astro";
+import Header from "../components/Header.astro";
+import Legal from "../components/Legal.astro";
+import Social from "../components/Social.astro";
+
+interface ProfileFrontmatter {
+  title: string;
+  name: string;
+  role?: string;
+  avatar?: string;
+  location?: string;
+}
+
+const { content } = Astro.props as { content: ProfileFrontmatter };
+---
+
+<Main content={{ title: `${content.name} (@${content.title})` }}>
+  <body class:list={["bg-background flex h-screen flex-col", "overflow-auto"]}>
+    <Header />
+    <main class="flex-1">
+      <div class="container mx-auto max-w-2xl px-4 py-8">
+        <header class="mb-12 text-center">
+          <div
+            class="mb-6 inline-flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-stone-300 dark:bg-stone-700"
+          >
+            {
+              content.avatar ? (
+                <img
+                  src={content.avatar}
+                  alt={content.name}
+                  class="h-full w-full object-cover"
+                />
+              ) : (
+                <span class="font-serif text-4xl text-stone-600 dark:text-stone-300">
+                  {content.name.charAt(0)}
+                </span>
+              )
+            }
+          </div>
+
+          <h1
+            class="mb-2 text-3xl font-bold"
+            style="font-family: 'Libre Baskerville', serif;"
+          >
+            {content.name}
+          </h1>
+
+          {
+            content.role && (
+              <p class="mb-2 text-lg text-stone-600 dark:text-stone-400">
+                {content.role}
+              </p>
+            )
+          }
+
+          <p class="text-stone-500 dark:text-stone-500">
+            @{content.title}
+          </p>
+
+          {
+            content.location && (
+              <p class="mt-2 text-sm text-stone-400 dark:text-stone-500">
+                📍 {content.location}
+              </p>
+            )
+          }
+        </header>
+
+        <article class="prose prose-stone dark:prose-invert prose-lg mx-auto">
+          <slot />
+        </article>
+      </div>
+    </main>
+    <footer
+      class="container mx-auto flex-none px-4 py-4 text-center text-sm text-stone-600 dark:text-stone-400"
+    >
+      <Social />
+      <Legal />
+    </footer>
+  </body>
+</Main>

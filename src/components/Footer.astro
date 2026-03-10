@@ -1,0 +1,13 @@
+---
+import "../styles/global.css";
+import Legal from "../components/Legal.astro";
+import Social from "../components/Social.astro";
+const { content } = Astro.props;
+---
+
+<footer
+  class="container mx-auto flex-none px-4 py-4 text-center text-sm text-stone-600 dark:text-stone-400"
+>
+  {content.social && <Social />}
+  <Legal />
+</footer>
