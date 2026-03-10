@@ -1,0 +1,33 @@
+---
+import '../styles/global.css';
+const { content } = Astro.props;
+---
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width" />
+	<link rel="icon" href="/iconx/favicon.svg" type="image/svg+xml">
+	<link rel="apple-touch-icon" href="/iconx/apple-touch-icon.png"/>
+	<!-- <link rel="manifest" href="/iconx/manifest.json" /> -->
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+	<title>{content.title}</title>
+	<script is:inline>
+		const theme = (() => {
+			if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
+				return localStorage.getItem('theme');
+			}
+			if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+				return 'dark';
+			}
+			return 'light';
+		})();
+		if (theme === 'dark') {
+			document.documentElement.classList.add('dark');
+		} else {
+			document.documentElement.classList.remove('dark');
+		}
+		window.localStorage.setItem('theme', theme);
+	</script>
+</head>

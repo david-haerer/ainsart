@@ -1,0 +1,15 @@
+---
+import "../styles/global.css";
+import Main from "../layouts/main.astro";
+const { content } = Astro.props;
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import App from "../components/App";
+---
+
+<Main content={{ title: "ains.art" }}>
+  <body class="bg-background fixed inset-0 flex h-dvh w-full overflow-hidden">
+    <Header />
+    <App client:only="react" />
+  </body>
+</Main>
