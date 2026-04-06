@@ -1,194 +1,213 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useDrag, useWheel } from '@use-gesture/react'
+import { Temporal } from '@js-temporal/polyfill';
 import { Badge } from '@/components/ui/badge'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
-const MIN_ZOOM = 0
-const MAX_ZOOM = 4
 const LAT_LONG_GOE = [51.541, 9.936]
+const TIME_ZERO = { hour: 0, minute: 0, second: 0, millisecond: 0, microsecond: 0, nanosecond: 0 }
+const MINUTE_ZERO = { minute: 0, second: 0, millisecond: 0, microsecond: 0, nanosecond: 0 }
 
-type BadgeLabel = 'YEAR' | 'MONTH' | 'WEEK' | 'DAY' | 'DAYTIME' | 'HOURS'
+
+abstract class TimeBadge {
+  constructor(protected zdt: Temporal.ZonedDateTime) { }
+
+  protected _start?: Temporal.ZonedDateTime
+  protected _end?: Temporal.ZonedDateTime
+  protected _duration?: Temporal.Duration
+  protected _days?: number
+  protected _startMilliseconds?: number
+  protected _endMilliseconds?: number
+
+  abstract get id(): string
+  abstract get start(): Temporal.ZonedDateTime
+  abstract get end(): Temporal.ZonedDateTime
+  abstract get next(): TimeBadge
+  abstract get labelTop(): string
+  abstract get labelBottom(): string
+
+  isPast(nowMilliseconds: number) {
+    if (!this._endMilliseconds) this._endMilliseconds = this.end.epochMilliseconds
+    return this._endMilliseconds < nowMilliseconds
+  }
+
+  isFuture(nowMilliseconds: number) {
+    if (!this._startMilliseconds) this._startMilliseconds = this.start.epochMilliseconds
+    return this._startMilliseconds > nowMilliseconds
+  }
+
+  get duration(): Temporal.Duration {
+    if (!this._duration) this._duration = this.start.until(this.end)
+    return this._duration
+  }
+
+  x(startMilliseconds: number, ppd: number) {
+    if (!this._startMilliseconds) this._startMilliseconds = this.start.epochMilliseconds
+    const ms = this._startMilliseconds - startMilliseconds
+    const pxPerMs = ppd / MS_PER_DAY
+    return pxPerMs * ms
+  }
+
+  width(ppd: number): number {
+    if (!this._startMilliseconds) this._startMilliseconds = this.start.epochMilliseconds
+    if (!this._endMilliseconds) this._endMilliseconds = this.end.epochMilliseconds
+    const pxPerMs = ppd / MS_PER_DAY
+    const ms = this._endMilliseconds - this._startMilliseconds
+    return pxPerMs * ms
+  }
+}
+
+class YearBadge extends TimeBadge {
+  get id() { return `year-${this.start.epochMilliseconds}` }
+  get start() {
+    if (!this._start) this._start = this.zdt.with({ month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0, microsecond: 0, nanosecond: 0 })
+    return this._start
+  }
+  get end() {
+    if (!this._end) this._end = this.start.add({ years: 1 }).subtract({ nanoseconds: 1 })
+    return this._end
+  }
+  get next() { return new YearBadge(this.zdt.add({ years: 1 })) }
+  get labelTop() { return String(this.zdt.year) }
+  get labelBottom() { return String(this.zdt.year) }
+}
+
+class MonthBadge extends TimeBadge {
+  get id() { return `month-${this.start.epochMilliseconds}` }
+  get start() {
+    if (!this._start) this._start = this.zdt.with(TIME_ZERO).with({ day: 1 })
+    return this._start
+  }
+  get end() {
+    if (!this._end) this._end = this.start.add({ months: 1 }).subtract({ nanoseconds: 1 })
+    return this._end
+  }
+  get next() { return new MonthBadge(this.zdt.add({ months: 1 })) }
+  get labelTop() { return this.zdt.toLocaleString('de-DE', { month: 'long', year: "numeric" }) }
+  get labelBottom() { return this.zdt.toLocaleString('de-DE', { month: 'short' }) }
+}
+
+class WeekBadge extends TimeBadge {
+  get id() { return `week-${this.start.epochMilliseconds}` }
+  get start() {
+    if (!this._start) this._start = this.zdt.subtract({ days: this.zdt.dayOfWeek - 1 }).with(TIME_ZERO)
+    return this._start
+  }
+  get end() {
+    if (!this._end) this._end = this.start.add({ days: 7 }).subtract({ nanoseconds: 1 })
+    return this._end
+  }
+  get next() { return new WeekBadge(this.zdt.add({ days: 7 })) }
+  get labelTop() { return `KW${this.zdt.weekOfYear} ${this.zdt.year}` }
+  get labelBottom() { return `KW${this.zdt.weekOfYear}` }
+}
+
+class DayBadge extends TimeBadge {
+  get id() { return `day-${this.start.epochMilliseconds}` }
+  get start() {
+    if (!this._start) this._start = this.zdt.with(TIME_ZERO)
+    return this._start
+  }
+  get end() {
+    if (!this._end) this._end = this.start.add({ days: 1 }).subtract({ nanoseconds: 1 })
+    return this._end
+  }
+  get next() { return new DayBadge(this.zdt.add({ days: 1 })) }
+  get labelTop() { return this.zdt.toLocaleString('de-DE', { day: 'numeric', month: "long", year: "numeric" }) }
+  get labelBottom() { return String(this.zdt.day) }
+}
+
+class DaytimeBadge extends TimeBadge {
+  get id() { return `daytime-${this.start.epochMilliseconds}` }
+  get start() {
+    if (!this._start) this._start = this.zdt.with({ hour: Math.floor(this.zdt.hour / 6) * 6 }).with(MINUTE_ZERO)
+    return this._start
+  }
+  get end() {
+    if (!this._end) this._end = this.start.add({ hours: 6 }).subtract({ nanoseconds: 1 })
+    return this._end
+  }
+  get next() { return new DaytimeBadge(this.zdt.add({ hours: 6 })) }
+  get labelTop() { return `${this.start.hour} - ${this.end.hour}` }
+  get labelBottom() { return `${this.start.hour} - ${this.end.hour}` }
+}
+
+class HourBadge extends TimeBadge {
+  get id() { return `hour-${this.start.epochMilliseconds}` }
+  get start() {
+    if (!this._start) this._start = this.zdt.with(MINUTE_ZERO)
+    return this._start
+  }
+  get end() {
+    if (!this._end) this._end = this.start.add({ hours: 1 }).subtract({ nanoseconds: 1 })
+    return this._end
+  }
+  get next() { return new HourBadge(this.zdt.add({ hours: 1 })) }
+  get labelTop() { return `${this.start.hour}:00` }
+  get labelBottom() { return `${this.start.hour}:00` }
+}
+
+type BadgeConstructor = new (datetime: Temporal.ZonedDateTime) => TimeBadge
 
 interface ZoomLevel {
-  top: BadgeLabel
-  bottom: BadgeLabel
+  top: BadgeConstructor
+  bottom: BadgeConstructor
   ppd: number
 }
 
 const ZOOM_LEVELS: ZoomLevel[] = [
-  { top: "YEAR", bottom: "MONTH", ppd: 1.5 },
-  { top: "MONTH", bottom: "WEEK", ppd: 8 },
-  { top: "WEEK", bottom: "DAY", ppd: 50 },
-  { top: "DAY", bottom: "DAYTIME", ppd: 350 },
-  { top: "DAYTIME", bottom: "HOURS", ppd: 900 },
+  { top: YearBadge, bottom: MonthBadge, ppd: 1.5 },
+  { top: MonthBadge, bottom: WeekBadge, ppd: 8 },
+  { top: WeekBadge, bottom: DayBadge, ppd: 36 },
+  { top: DayBadge, bottom: DaytimeBadge, ppd: 250 },
+  { top: DayBadge, bottom: HourBadge, ppd: 1100 },
 ]
 
-
-interface LabelConfig {
-  getStart: (d: Date) => number
-  getEnd: (d: Date) => number
-  advance: (d: Date) => void
-  format: (d: Date, row: string) => string
-  getPeriodLength: (d: Date) => number
-}
-
-function getWeekNumber(date: Date): number {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-  const dayNum = d.getUTCDay() || 7
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
-}
-
-const LABEL_CONFIGS: Record<BadgeLabel, LabelConfig> = {
-  YEAR: {
-    getStart: (d) => new Date(d.getFullYear(), 0, 1).getTime(),
-    getEnd: (d) => new Date(d.getFullYear() + 1, 0, 1).getTime(),
-    advance: (d) => d.setFullYear(d.getFullYear() + 1, 0, 1),
-    format: (d) => String(d.getFullYear()),
-    getPeriodLength: (d) => {
-      const year = d.getFullYear()
-      return (new Date(year + 1, 0, 1).getTime() - new Date(year, 0, 1).getTime()) / MS_PER_DAY
-    },
-  },
-  MONTH: {
-    getStart: (d) => new Date(d.getFullYear(), d.getMonth(), 1).getTime(),
-    getEnd: (d) => new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime(),
-    advance: (d) => d.setMonth(d.getMonth() + 1, 1),
-    format: (d, row) => row == "top" ? d.toLocaleString('default', { month: 'long', year: "numeric" }) : d.toLocaleString('default', { month: 'short' }),
-    getPeriodLength: (d) => {
-      return (new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime() - new Date(d.getFullYear(), d.getMonth(), 1).getTime()) / MS_PER_DAY
-    },
-  },
-  WEEK: {
-    getStart: (d) => {
-      const day = d.getDay()
-      const diff = d.getDate() - day + (day === 0 ? -6 : 1) // Adjust for Sunday
-      return new Date(d.getFullYear(), d.getMonth(), diff).getTime()
-    },
-    getEnd: (d) => new Date(d.getTime() + 7 * MS_PER_DAY).getTime(),
-    advance: (d) => {
-      d.setDate(d.getDate() + 7)
-      const day = d.getDay()
-      const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-      d.setDate(diff)
-    },
-    format: (d) => `KW${getWeekNumber(d)}`,
-    getPeriodLength: () => 7,
-  },
-  DAY: {
-    getStart: (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(),
-    getEnd: (d) => new Date(d.getTime() + MS_PER_DAY).getTime(),
-    advance: (d) => d.setDate(d.getDate() + 1),
-    format: (d, row) => row == "top" ? d.toLocaleDateString('default', { weekday: 'long' }) : d.toLocaleDateString('default', { weekday: 'short' }),
-    getPeriodLength: () => 1,
-  },
-  DAYTIME: {
-    // Round down to nearest 6-hour boundary (0, 6, 12, 18)
-    getStart: (d) => {
-      const hour = Math.floor(d.getHours() / 6) * 6
-      return new Date(d.getFullYear(), d.getMonth(), d.getDate(), hour).getTime()
-    },
-
-    // 6 hours later
-    getEnd: (d) => {
-      const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), Math.floor(d.getHours() / 6) * 6)
-      return start.getTime() + 6 * 60 * 60 * 1000
-    },
-
-    // Simply add 6 hours - no special day-crossing logic needed
-    advance: (d) => {
-      d.setHours(Math.floor(d.getHours() / 6) * 6 + 6, 0, 0, 0)
-    },
-
-    // Label based on the period start hour
-    format: (d) => {
-      const periodStart = Math.floor(d.getHours() / 6) * 6
-      if (periodStart == 0) return 'Nacht'
-      if (periodStart == 6) return 'Morgen'
-      if (periodStart == 12) return 'Nachmittag'
-      return 'Abend'
-    },
-
-    getPeriodLength: () => 6 / 24,
-  },
-  HOURS: {
-    getStart: (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()).getTime(),
-    getEnd: (d) => new Date(d.getTime() + 60 * 60 * 1000).getTime(),
-    advance: (d) => d.setHours(d.getHours() + 1),
-    format: (d) => d.getHours().toString().padStart(2, '0'),
-    getPeriodLength: () => 1 / 24,
-  },
-}
-
-
-interface BadgeSpan {
-  x: number
-  width: number
-  label: string
-  isPast: boolean
-  isFuture: boolean
-  startTime: number
-  endTime: number
-}
+//   HOURS: {
+//     getStart: (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()).getTime(),
+//     getEnd: (d) => new Date(d.getTime() + 60 * 60 * 1000).getTime(),
+//     advance: (d) => d.setHours(d.getHours() + 1),
+//     format: (d) => d.getHours().toString().padStart(2, '0'),
+//     getPeriodLength: () => 1 / 24,
+//   },
 
 interface Layout {
-  top: BadgeSpan[]
-  bottom: BadgeSpan[]
+  top: TimeBadge[]
+  bottom: TimeBadge[]
+  startMilliseconds: number
+  ppd: number
+  nowMilliseconds: number
 }
 
-
 function generateBadges(
-  row: string,
-  label: BadgeLabel,
-  start: Date,
-  end: Date,
-  msToX: (ms: number) => number,
-  now: number,
-  ppd: number,
-): BadgeSpan[] {
-  const config = LABEL_CONFIGS[label]
-  const badges: BadgeSpan[] = []
-  const currentDate = new Date(start.getTime())
-  while (true) {
-    const periodStart = config.getStart(currentDate)
-    const periodEnd = config.getEnd(currentDate)
-    if (periodStart > end.getTime()) {
-      break
-    }
-    badges.push({
-      x: msToX(periodStart),
-      width: config.getPeriodLength(currentDate) * ppd,
-      label: config.format(currentDate, row),
-      isPast: periodEnd < now,
-      isFuture: periodStart > now,
-      startTime: periodStart,
-      endTime: periodEnd,
-    })
-    config.advance(currentDate)
+  badgeConstrutor: BadgeConstructor,
+  start: Temporal.ZonedDateTime,
+  end: Temporal.ZonedDateTime,
+): TimeBadge[] {
+  const badges: TimeBadge[] = []
+  let badge = new badgeConstrutor(start)
+  badges.push(badge)
+  while (badge.start.epochMilliseconds < end.epochMilliseconds) {
+    badge = badge.next
+    badges.push(badge)
   }
   return badges
 }
 
-function getVisibleRange(centerTime: Date, zoom: number, pxPerViewport: number): { start: Date; end: Date, totalMs: number } {
-  const center = centerTime.getTime()
-  const pxPerDay = ZOOM_LEVELS[zoom].ppd;
-  const msPerPx = MS_PER_DAY / pxPerDay;
-  const totalMs = pxPerViewport * msPerPx;
-  return {
-    start: new Date(center - totalMs / 2),
-    end: new Date(center + totalMs / 2),
-    totalMs: totalMs,
-  }
+function getVisibleRange(center: Temporal.ZonedDateTime, zoom: number, width: number): { start: Temporal.ZonedDateTime; end: Temporal.ZonedDateTime, duration: Temporal.Duration } {
+  const msPerPx = MS_PER_DAY / ZOOM_LEVELS[zoom].ppd;
+  const start = center.add({ milliseconds: Math.floor(-width / 2 * msPerPx) })
+  const end = center.add({ milliseconds: Math.floor(width / 2 * msPerPx) })
+  return { start, end, duration: start.until(end) }
 }
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null)
 
   const timeline = useRef({
-    center: new Date(),
+    center: Temporal.Now.zonedDateTimeISO(),
     zoom: 0,
   })
 
@@ -196,8 +215,6 @@ export default function App() {
     center: LAT_LONG_GOE,
     zoom: 13
   })
-
-  const initialCenterTime = useRef(new Date())
 
   const [, forceUpdate] = useState(0)
   const rerender = useCallback(() => forceUpdate((n) => n + 1), [])
@@ -213,48 +230,42 @@ export default function App() {
   }, [rerender])
 
   const getVisibleWidth = useCallback(() => {
-    return containerRef.current?.clientWidth
+    if (!containerRef.current) return 0
+    return containerRef.current.clientWidth
   }, [])
 
   const computeLayout = useCallback((): Layout => {
     const width = getVisibleWidth()
-    if (!width) return { top: [], bottom: [] };
     const { center, zoom } = timeline.current
     const z = ZOOM_LEVELS[zoom]
-    const { start, end, totalMs } = getVisibleRange(center, zoom, width)
-    const now = Date.now()
-    const msToX = (ms: number) => {
-      const ratio = (ms - start.getTime()) / totalMs
-      return ratio * width
-    }
-    const top: BadgeSpan[] = generateBadges("top", z.top, start, end, msToX, now, z.ppd);
-    const bottom: BadgeSpan[] = generateBadges("bottom", z.bottom, start, end, msToX, now, z.ppd);
-    return { top, bottom }
+    const { start, end } = getVisibleRange(center, zoom, width)
+    const top: TimeBadge[] = generateBadges(z.top, start, end);
+    const bottom: TimeBadge[] = generateBadges(z.bottom, start, end);
+    const now = Temporal.Now.zonedDateTimeISO()
+    return { top, bottom, startMilliseconds: start.epochMilliseconds, nowMilliseconds: now.epochMilliseconds, ppd: z.ppd }
   }, [getVisibleWidth])
 
+  const initialCenterTime = useRef(Temporal.Now.zonedDateTimeISO())
   const bindDrag = useDrag(({ down, movement: [mx] }) => {
     if (!down) {
-      initialCenterTime.current = new Date(timeline.current.center.getTime())
+      initialCenterTime.current = timeline.current.center
       return
     }
-    const width = getVisibleWidth()
-    if (!width) return;
-    const { totalMs } = getVisibleRange(initialCenterTime.current, timeline.current.zoom, width)
-    const msPerPixel = totalMs / width
-    const timeDelta = -mx * msPerPixel
-    timeline.current.center = new Date(initialCenterTime.current.getTime() + timeDelta)
+    const ppd = ZOOM_LEVELS[timeline.current.zoom].ppd
+    const msPerPx = MS_PER_DAY / ppd
+    const timeDelta = -mx * msPerPx
+    timeline.current.center = initialCenterTime.current.add({ milliseconds: Math.round(timeDelta) })
     rerender()
   })
 
   const lastZoomTime = useRef(0)
-  const COOLDOWN_MS = 200
   const bindWheel = useWheel(({ delta: [, dy] }) => {
     if (dy === 0) return
     const now = Date.now()
-    if (now - lastZoomTime.current < COOLDOWN_MS) return
+    if (now - lastZoomTime.current < 150) return
     lastZoomTime.current = now
     const direction = dy > 0 ? -1 : 1
-    const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, timeline.current.zoom + direction))
+    const newZoom = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, timeline.current.zoom + direction))
     timeline.current.zoom = newZoom
     rerender()
   })
@@ -265,9 +276,8 @@ export default function App() {
     const now = Date.now()
 
     if (now - lastClickTime.current < DOUBLE_CLICK_DELAY) {
-      // Double click - center on present
-      timeline.current.center = new Date()
-      initialCenterTime.current = new Date()
+      timeline.current.center = Temporal.Now.zonedDateTimeISO()
+      initialCenterTime.current = timeline.current.center
       rerender()
     }
 
@@ -291,7 +301,6 @@ export default function App() {
         touchStartX = e.touches[0].clientX
         touchStartY = e.touches[0].clientY
         isTouchDragging.current = true
-        initialCenterTime.current = new Date(timeline.current.center.getTime())
         lastTouchX.current = touchStartX
         lastTouchY.current = touchStartY
       } else if (e.touches.length === 2) {
@@ -310,39 +319,26 @@ export default function App() {
 
         if (xDiff > yDiff) {
           if (e.cancelable) e.preventDefault()
-          const width = getVisibleWidth()
-          if (!width) return;
-          const { totalMs } = getVisibleRange(timeline.current.center, timeline.current.zoom, width)
-          const offset = touchX - touchStartX
-          const msPerPixel = totalMs / width
-          const timeDelta = -offset * msPerPixel
-          timeline.current.center = new Date(initialCenterTime.current.getTime() + timeDelta)
+          const ppd = ZOOM_LEVELS[timeline.current.zoom].ppd
+          const msPerPx = MS_PER_DAY / ppd
+          const mx = touchX - touchStartX
+          const timeDelta = -mx * msPerPx
+          timeline.current.center = initialCenterTime.current.add({ milliseconds: Math.round(timeDelta) })
           rerender()
           return
         }
 
         isTouchDragging.current = false
         const direction = touchStartY - touchY
-        const newZoom = direction < 0
-          ? Math.min(MAX_ZOOM, timeline.current.zoom + 1)
-          : Math.max(MIN_ZOOM, timeline.current.zoom - 1)
-        if (newZoom === timeline.current.zoom) return
-        const rect = container.getBoundingClientRect()
-        const cursorRatio = (touchX - rect.left) / rect.width
-        const width = getVisibleWidth()
-        if (!width) return;
-        const { start, totalMs } = getVisibleRange(timeline.current.center, timeline.current.zoom, width)
-        const cursorMs = start.getTime() + cursorRatio * totalMs
+        const newZoom = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, timeline.current.zoom - direction))
         timeline.current.zoom = newZoom
-        const newRange = getVisibleRange(timeline.current.center, newZoom, width)
-        const newCursorRatio = (cursorMs - newRange.start.getTime()) / newRange.totalMs
-        timeline.current.center = new Date(cursorMs - newCursorRatio * newRange.totalMs + newRange.totalMs / 2)
         rerender()
       }
     }
 
     const handleTouchEnd = () => {
       isTouchDragging.current = false
+      initialCenterTime.current = timeline.current.center
     }
 
     container.addEventListener('touchstart', handleTouchStart, { passive: false })
@@ -380,31 +376,32 @@ export default function App() {
     <main className="h-[calc(100dvh-48px-64px)]">
       <div
         ref={containerRef}
-        className="w-full h-[64px] overflow-hidden select-none cursor-grab pt-2"
+        className="w-full h-[52px] overflow-hidden select-none cursor-grab"
         style={{
           touchAction: 'none',
           backgroundColor: 'var(--card)',
+          willChange: 'transform',
         }}
         onClick={handleTimelineClick}
         {...bindDrag()}
         {...bindWheel()}
       >
-        <svg width={getVisibleWidth()} height={64} className="block" style={{ backgroundColor: 'transparent' }}>
+        <svg width={getVisibleWidth()} height={52} className="block" style={{ backgroundColor: 'transparent' }}>
           {layout.top.map((badge, i) => (
-            <foreignObject key={`${badge.startTime}-${badge.endTime}`} x={badge.x} y={0} width={Math.max(badge.width, 1)} height={24}>
+            <foreignObject key={badge.id} x={badge.x(layout.startMilliseconds, layout.ppd)} y={4} width={badge.width(layout.ppd)} height={22}>
               <div className="w-full h-full flex items-center justify-center">
-                <Badge variant={badge.isPast ? 'past' : badge.isFuture ? 'future' : 'present'} className="flex w-full">
-                  {badge.label}
+                <Badge variant={badge.isPast(layout.nowMilliseconds) ? 'past' : badge.isFuture(layout.nowMilliseconds) ? 'future' : 'present'} className="flex w-full">
+                  {badge.labelTop}
                 </Badge>
               </div>
             </foreignObject>
           ))}
 
           {layout.bottom.map((badge, i) => (
-            <foreignObject key={`bottom-${i}`} x={badge.x} y={30} width={Math.max(badge.width, 1)} height={24}>
+            <foreignObject key={badge.id} x={badge.x(layout.startMilliseconds, layout.ppd)} y={28} width={badge.width(layout.ppd)} height={22}>
               <div className="w-full h-full flex items-center justify-center">
-                <Badge variant={badge.isPast ? 'past' : badge.isFuture ? 'future' : 'present'} className="flex w-full">
-                  {badge.label}
+                <Badge variant={badge.isPast(layout.nowMilliseconds) ? 'past' : badge.isFuture(layout.nowMilliseconds) ? 'future' : 'present'} className="flex w-full">
+                  {badge.labelBottom}
                 </Badge>
               </div>
             </foreignObject>
