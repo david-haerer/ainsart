@@ -165,14 +165,6 @@ const ZOOM_LEVELS: ZoomLevel[] = [
   { top: DayBadge, bottom: HourBadge, ppd: 1100 },
 ]
 
-//   HOURS: {
-//     getStart: (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()).getTime(),
-//     getEnd: (d) => new Date(d.getTime() + 60 * 60 * 1000).getTime(),
-//     advance: (d) => d.setHours(d.getHours() + 1),
-//     format: (d) => d.getHours().toString().padStart(2, '0'),
-//     getPeriodLength: () => 1 / 24,
-//   },
-
 interface Layout {
   top: TimeBadge[]
   bottom: TimeBadge[]
@@ -198,8 +190,8 @@ function generateBadges(
 
 function getVisibleRange(center: Temporal.ZonedDateTime, zoom: number, width: number): { start: Temporal.ZonedDateTime; end: Temporal.ZonedDateTime, duration: Temporal.Duration } {
   const msPerPx = MS_PER_DAY / ZOOM_LEVELS[zoom].ppd;
-  const start = center.add({ milliseconds: Math.floor(-width / 2 * msPerPx) })
-  const end = center.add({ milliseconds: Math.floor(width / 2 * msPerPx) })
+  const start = center.add({ milliseconds: Math.floor(-width * 0.25 * msPerPx) })
+  const end = center.add({ milliseconds: Math.floor(width * 0.75 * msPerPx) })
   return { start, end, duration: start.until(end) }
 }
 
@@ -213,7 +205,7 @@ export default function App() {
 
   const map = useRef({
     center: LAT_LONG_GOE,
-    zoom: 13
+    zoom: 10
   })
 
   const [, forceUpdate] = useState(0)
@@ -330,7 +322,7 @@ export default function App() {
 
         isTouchDragging.current = false
         const direction = touchStartY - touchY
-        const newZoom = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, timeline.current.zoom - direction))
+        const newZoom = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, timeline.current.zoom + (direction / Math.abs(direction))))
         timeline.current.zoom = newZoom
         rerender()
       }
@@ -373,10 +365,11 @@ export default function App() {
   }, [map.current.center, map.current.zoom])
 
   return (
-    <main className="h-[calc(100dvh-48px-64px)]">
+    <main className="h-[calc(100dvh-40px-49px-1px)]">
+      <div ref={mapRef} className="w-full h-full select-none" />
       <div
         ref={containerRef}
-        className="w-full h-[52px] overflow-hidden select-none cursor-grab"
+        className="w-full h-[49] overflow-hidden select-none cursor-grab border-t border-solid border-gray-300 dark:border-gray-700"
         style={{
           touchAction: 'none',
           backgroundColor: 'var(--card)',
@@ -386,9 +379,9 @@ export default function App() {
         {...bindDrag()}
         {...bindWheel()}
       >
-        <svg width={getVisibleWidth()} height={52} className="block" style={{ backgroundColor: 'transparent' }}>
+        <svg width={getVisibleWidth()} height={1 + 22 + 2 + 22 + 2} className="block" style={{ backgroundColor: 'transparent' }}>
           {layout.top.map((badge, i) => (
-            <foreignObject key={badge.id} x={badge.x(layout.startMilliseconds, layout.ppd)} y={4} width={badge.width(layout.ppd)} height={22}>
+            <foreignObject key={badge.id} x={badge.x(layout.startMilliseconds, layout.ppd)} y={1} width={badge.width(layout.ppd)} height={22}>
               <div className="w-full h-full flex items-center justify-center">
                 <Badge variant={badge.isPast(layout.nowMilliseconds) ? 'past' : badge.isFuture(layout.nowMilliseconds) ? 'future' : 'present'} className="flex w-full">
                   {badge.labelTop}
@@ -398,7 +391,7 @@ export default function App() {
           ))}
 
           {layout.bottom.map((badge, i) => (
-            <foreignObject key={badge.id} x={badge.x(layout.startMilliseconds, layout.ppd)} y={28} width={badge.width(layout.ppd)} height={22}>
+            <foreignObject key={badge.id} x={badge.x(layout.startMilliseconds, layout.ppd)} y={1 + 22 + 2} width={badge.width(layout.ppd)} height={22}>
               <div className="w-full h-full flex items-center justify-center">
                 <Badge variant={badge.isPast(layout.nowMilliseconds) ? 'past' : badge.isFuture(layout.nowMilliseconds) ? 'future' : 'present'} className="flex w-full">
                   {badge.labelBottom}
@@ -408,7 +401,6 @@ export default function App() {
           ))}
         </svg>
       </div>
-      <div ref={mapRef} className="w-full h-full select-none" />
     </main>
   )
 }
