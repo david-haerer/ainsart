@@ -96,7 +96,9 @@
   --color-timeline-future: var(--timeline-future);
   --color-timeline-past-fg: var(--timeline-past-fg);
   --color-timeline-present-fg: var(--timeline-present-fg);
+  --color-timeline-present-border: var(--timeline-present-border);
   --color-timeline-future-fg: var(--timeline-future-fg);
+  --color-timeline-future-border: var(--timeline-future-border);
 }
 
 :root {
@@ -132,12 +134,14 @@
   --sidebar-accent-foreground: oklch(0.216 0.006 56.043);
   --sidebar-border: oklch(0.923 0.003 48.717);
   --sidebar-ring: oklch(0.709 0.01 56.259);
-  --timeline-past: var(--color-gray-300);
-  --timeline-past-fg: var(--color-gray-800);
-  --timeline-present: var(--color-green-700);
-  --timeline-present-fg: var(--color-gray-200);
-  --timeline-future: var(--color-green-200);
-  --timeline-future-fg: var(--color-gray-800);
+  --timeline-past: var(--color-gray-100);
+  --timeline-past-fg: var(--color-gray-500);
+  --timeline-present: var(--color-green-600);
+  --timeline-present-fg: var(--color-green-100);
+  --timeline-present-border: var(--color-green-700);
+  --timeline-future: var(--color-gray-300);
+  --timeline-future-fg: var(--color-green-800);
+  --timeline-future-border: var(--color-green-400);
 }
 
 .dark {
@@ -172,12 +176,14 @@
   --sidebar-accent-foreground: oklch(0.985 0.001 106.423);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.553 0.013 58.071);
-  --timeline-past: var(--color-gray-700);
-  --timeline-past-fg: var(--color-gray-300);
-  --timeline-present: var(--color-green-600);
+  --timeline-past: var(--color-gray-900);
+  --timeline-past-fg: var(--color-gray-500);
+  --timeline-present: var(--color-green-700);
   --timeline-present-fg: var(--color-gray-100);
-  --timeline-future: var(--color-green-100);
-  --timeline-future-fg: var(--color-gray-800);
+  --timeline-present-border: var(--color-green-600);
+  --timeline-future: var(--color-gray-700);
+  --timeline-future-fg: var(--color-green-400);
+  --timeline-future-border: var(--color-gray-600);
 }
 
 @layer base {

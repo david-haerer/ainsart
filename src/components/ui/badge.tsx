@@ -11,8 +11,8 @@ const badgeVariants = cva(
       variant: {
         default: "bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
         past: "bg-timeline-past text-timeline-past-fg [a&]:hover:bg-primary/90",
-        present: "bg-timeline-present text-timeline-present-fg [a&]:hover:bg-primary/90",
-        future: "bg-timeline-future text-timeline-future-fg [a&]:hover:bg-primary/90",
+        present: "bg-timeline-present border-timeline-present-border text-timeline-present-fg [a&]:hover:bg-primary/90",
+        future: "bg-timeline-future border-timeline-future-border text-timeline-future-fg [a&]:hover:bg-primary/90",
         secondary:
           "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
         destructive:
