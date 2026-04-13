@@ -9,6 +9,7 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/check": "^0.9.8",
     "@astrojs/mdx": "^4.3.13",
     "@astrojs/react": "^4.4.2",
     "@js-temporal/polyfill": "^0.5.1",
@@ -28,7 +29,8 @@
     "lucide-react": "^0.574.0",
     "radix-ui": "^1.4.3",
     "tailwind-merge": "^3.4.1",
-    "tailwindcss": "^4.1.18"
+    "tailwindcss": "^4.1.18",
+    "typescript": "^6.0.2"
   },
   "devDependencies": {
     "prettier": "^3.8.1",
