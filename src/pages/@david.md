@@ -23,6 +23,6 @@ Doch jetzt habe ich unterschiedliche Nutzernamen auf den verschiedenen Socials. 
 
 Was würdet ihr machen? Die anderen Kanäle auch auf "@ainsartig" umstellen, oder wo es geht bei "@ainsart" bleiben, weil es am nächsten an der Domain ist 🙋
 
-Und wie sieht es eigentlich auf Facebook aus? Ich habe dort auch eine Seite, fühle mich auf der Platform aber noch ziemlich verloren .. 🙃
+Und wie sieht es eigentlich auf Facebook aus? Ich habe dort auch eine Seite, fühle mich auf der Platform aber noch ziemlich verloren ... 🙃
 
 ~ David, 2026-04-23
