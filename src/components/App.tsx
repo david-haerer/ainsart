@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Temporal } from "@js-temporal/polyfill";
 import { Badge } from "@/components/ui/badge";
 import L, { type LatLngExpression } from "leaflet";
@@ -31,7 +31,7 @@ function slug(text: string): string {
 }
 
 abstract class TimeBadge {
-  constructor(protected zdt: Temporal.ZonedDateTime) { }
+  constructor(protected zdt: Temporal.ZonedDateTime) {}
 
   protected _start?: Temporal.ZonedDateTime;
   protected _end?: Temporal.ZonedDateTime;
@@ -179,28 +179,53 @@ class DayBadge extends TimeBadge {
     return new DayBadge(this.zdt.add({ days: 1 }));
   }
   label(ppd: number) {
-    if (ppd < 64) return this.zdt.toLocaleString("de-DE", { day: "numeric", month: "numeric" });
-    if (ppd < 100) return this.zdt.toLocaleString("de-DE", { day: "numeric", month: "short" });
-    if (ppd < 120) return this.zdt.toLocaleString("de-DE", { day: "numeric", month: "short", year: "numeric" });
-    return this.zdt.toLocaleString("de-DE", { day: "numeric", month: "long", year: "numeric" });
+    if (ppd < 64)
+      return this.zdt.toLocaleString("de-DE", {
+        day: "numeric",
+        month: "numeric",
+      });
+    if (ppd < 100)
+      return this.zdt.toLocaleString("de-DE", {
+        day: "numeric",
+        month: "short",
+      });
+    if (ppd < 120)
+      return this.zdt.toLocaleString("de-DE", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+    return this.zdt.toLocaleString("de-DE", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
   }
 }
 
 class DaytimeBadge extends TimeBadge {
-  get id() { return `daytime-${this.start.epochMilliseconds}` }
+  get id() {
+    return `daytime-${this.start.epochMilliseconds}`;
+  }
   get start() {
-    if (!this._start) this._start = this.zdt.with({ hour: Math.floor(this.zdt.hour / 6) * 6 }).with(MINUTE_ZERO)
-    return this._start
+    if (!this._start)
+      this._start = this.zdt
+        .with({ hour: Math.floor(this.zdt.hour / 6) * 6 })
+        .with(MINUTE_ZERO);
+    return this._start;
   }
   get end() {
-    if (!this._end) this._end = this.start.add({ hours: 6 }).subtract({ nanoseconds: 1 })
-    return this._end
+    if (!this._end)
+      this._end = this.start.add({ hours: 6 }).subtract({ nanoseconds: 1 });
+    return this._end;
   }
-  get next() { return new DaytimeBadge(this.zdt.add({ hours: 6 })) }
+  get next() {
+    return new DaytimeBadge(this.zdt.add({ hours: 6 }));
+  }
   label(ppd: number) {
     if (ppd < 500) return `${this.start.hour} - ${this.end.hour} Uhr`;
     if (ppd < 800) return `${this.start.hour}:00 - ${this.end.hour}:00 Uhr`;
-    return `${this.zdt.toLocaleString('de-DE', { day: 'numeric', month: "short" })}, ${this.start.hour}:00 - ${this.end.hour}:00 Uhr`;
+    return `${this.zdt.toLocaleString("de-DE", { day: "numeric", month: "short" })}, ${this.start.hour}:00 - ${this.end.hour}:00 Uhr`;
   }
 }
 
@@ -238,11 +263,11 @@ interface ZoomLevel {
 }
 
 function getTopBottom(ppd: number): ZoomLevel {
-  if (ppd < 6) return { top: YearBadge, bottom: MonthBadge }
-  if (ppd < 48) return { top: MonthBadge, bottom: WeekBadge }
-  if (ppd < 350) return { top: WeekBadge, bottom: DayBadge }
-  if (ppd < 800) return { top: DayBadge, bottom: DaytimeBadge }
-  return { top: DaytimeBadge, bottom: HourBadge }
+  if (ppd < 6) return { top: YearBadge, bottom: MonthBadge };
+  if (ppd < 48) return { top: MonthBadge, bottom: WeekBadge };
+  if (ppd < 350) return { top: WeekBadge, bottom: DayBadge };
+  if (ppd < 800) return { top: DayBadge, bottom: DaytimeBadge };
+  return { top: DaytimeBadge, bottom: HourBadge };
 }
 
 class EventBadge extends TimeBadge {
@@ -279,22 +304,21 @@ class Event {
     readonly badges: EventBadge[],
     readonly latlng: LatLngExpression,
     readonly organizer: string,
-  ) { }
+  ) {}
   get id(): string {
     return slug(this.title);
   }
   isVisible(
     mapBounds: L.LatLngBounds | null,
-    startMilliseconds: number,
-    endMilliseconds: number,
-
+    startMs: number,
+    endMs: number,
   ): boolean {
     const hasTimeOverlap = this.badges.some(
       (badge) =>
-        badge.start.epochMilliseconds > startMilliseconds &&
-        badge.end.epochMilliseconds < endMilliseconds
+        badge.end.epochMilliseconds > startMs &&
+        badge.start.epochMilliseconds < endMs,
     );
-    if (hasTimeOverlap) return false;
+    if (!hasTimeOverlap) return false;
     if (mapBounds) {
       return mapBounds.contains(this.latlng);
     }
@@ -333,8 +357,6 @@ const EVENTS: Event[] = [
   ),
 ];
 
-
-
 interface Layout {
   top: TimeBadge[];
   bottom: TimeBadge[];
@@ -359,17 +381,18 @@ function generateBadges(
   return badges;
 }
 
-
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   window.debugLog = (msg: string) => {
-    const el = document.getElementById('debug') || document.createElement('div')
-    el.id = 'debug'
-    el.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#000;color:#0f0;font:12px monospace;z-index:9999;max-height:200px;overflow:auto;'
-    if (!el.parentNode) document.body.appendChild(el)
-    el.innerHTML = `<div>${msg}</div>`
-  }
+    const el =
+      document.getElementById("debug") || document.createElement("div");
+    el.id = "debug";
+    el.style.cssText =
+      "position:fixed;top:0;left:0;right:0;background:#000;color:#0f0;font:12px monospace;z-index:9999;max-height:200px;overflow:auto;";
+    if (!el.parentNode) document.body.appendChild(el);
+    el.innerHTML = `<div>${msg}</div>`;
+  };
 
   const timeline = useRef({
     x: typeof window !== "undefined" ? window.innerWidth * 0.25 : 300,
@@ -404,9 +427,13 @@ export default function App() {
     const width = getVisibleWidth();
     const { zdt, ppd } = timeline.current;
     const msPerPx = MS_PER_DAY / ppd;
-    const start = zdt.subtract({ milliseconds: Math.floor(timeline.current.x * msPerPx) });
-    const end = zdt.add({ milliseconds: Math.floor((width - timeline.current.x) * msPerPx) });
-    const { top: TopBadge, bottom: BottomBadge } = getTopBottom(ppd)
+    const start = zdt.subtract({
+      milliseconds: Math.floor(timeline.current.x * msPerPx),
+    });
+    const end = zdt.add({
+      milliseconds: Math.floor((width - timeline.current.x) * msPerPx),
+    });
+    const { top: TopBadge, bottom: BottomBadge } = getTopBottom(ppd);
     const top: TimeBadge[] = generateBadges(TopBadge, start, end);
     const bottom: TimeBadge[] = generateBadges(BottomBadge, start, end);
     const now = Temporal.Now.zonedDateTimeISO();
@@ -425,84 +452,90 @@ export default function App() {
   const MAX_PPD = 2400;
 
   useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const pointers = new Map<number, { x: number; y: number }>()
-    let isPinching = false
-    let initialPinchDistance = 0
-    let initialPpd = 0
-    let lastDragX = 0
-    const getDistance = (p1: { x: number; y: number }, p2: { x: number; y: number }) => {
-      const dx = p2.x - p1.x
-      const dy = p2.y - p1.y
-      return Math.sqrt(dx * dx + dy * dy)
-    }
+    const el = containerRef.current;
+    if (!el) return;
+    const pointers = new Map<number, { x: number; y: number }>();
+    let isPinching = false;
+    let initialPinchDistance = 0;
+    let initialPpd = 0;
+    let lastDragX = 0;
+    const getDistance = (
+      p1: { x: number; y: number },
+      p2: { x: number; y: number },
+    ) => {
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
     const getMidpointX = (p1: { x: number }, p2: { x: number }) => {
-      return (p1.x + p2.x) / 2
-    }
+      return (p1.x + p2.x) / 2;
+    };
     const setOrigin = (x: number) => {
-      const msPerPx = MS_PER_DAY / timeline.current.ppd
+      const msPerPx = MS_PER_DAY / timeline.current.ppd;
       timeline.current.zdt = timeline.current.zdt.add({
         milliseconds: Math.round((x - timeline.current.x) * msPerPx),
-      })
-      timeline.current.x = x
-    }
+      });
+      timeline.current.x = x;
+    };
     const handlePointerDown = (e: PointerEvent) => {
-      if (e.button !== 0) return
-      e.preventDefault()
-      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
-      el.setPointerCapture(e.pointerId)
+      if (e.button !== 0) return;
+      e.preventDefault();
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      el.setPointerCapture(e.pointerId);
       if (pointers.size === 1) {
-        lastDragX = e.clientX
-        setOrigin(e.clientX)
+        lastDragX = e.clientX;
+        setOrigin(e.clientX);
       } else if (pointers.size === 2) {
-        isPinching = true
-        const pts = Array.from(pointers.values())
-        initialPinchDistance = getDistance(pts[0], pts[1])
-        initialPpd = timeline.current.ppd
-        setOrigin(getMidpointX(pts[0], pts[1]))
+        isPinching = true;
+        const pts = Array.from(pointers.values());
+        initialPinchDistance = getDistance(pts[0], pts[1]);
+        initialPpd = timeline.current.ppd;
+        setOrigin(getMidpointX(pts[0], pts[1]));
       }
-    }
+    };
     const handlePointerMove = (e: PointerEvent) => {
-      if (!pointers.has(e.pointerId)) return
-      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (isPinching && pointers.size >= 2) {
-        e.preventDefault()
-        const pts = Array.from(pointers.values())
-        const newDistance = getDistance(pts[0], pts[1])
-        const ratio = newDistance / initialPinchDistance
-        timeline.current.ppd = Math.max(MIN_PPD, Math.min(MAX_PPD, initialPpd * ratio))
-        rerender()
+        e.preventDefault();
+        const pts = Array.from(pointers.values());
+        const newDistance = getDistance(pts[0], pts[1]);
+        const ratio = newDistance / initialPinchDistance;
+        timeline.current.ppd = Math.max(
+          MIN_PPD,
+          Math.min(MAX_PPD, initialPpd * ratio),
+        );
+        rerender();
       } else if (!isPinching && pointers.size === 1) {
-        e.preventDefault()
-        const dx = e.clientX - lastDragX
-        lastDragX = e.clientX
-        timeline.current.x = timeline.current.x + dx
-        rerender()
+        e.preventDefault();
+        const dx = e.clientX - lastDragX;
+        lastDragX = e.clientX;
+        timeline.current.x = timeline.current.x + dx;
+        rerender();
       }
-    }
+    };
     const handlePointerUp = (e: PointerEvent) => {
-      pointers.delete(e.pointerId)
+      pointers.delete(e.pointerId);
       if (isPinching && pointers.size < 2) {
-        isPinching = false
+        isPinching = false;
         if (pointers.size === 1) {
-          const remaining = Array.from(pointers.values())[0]
-          lastDragX = remaining.x
-          setOrigin(remaining.x)
+          const remaining = Array.from(pointers.values())[0];
+          lastDragX = remaining.x;
+          setOrigin(remaining.x);
         }
       }
-    }
-    el.addEventListener("pointerdown", handlePointerDown, { passive: false })
-    el.addEventListener("pointermove", handlePointerMove, { passive: false })
-    el.addEventListener("pointerup", handlePointerUp)
-    el.addEventListener("pointercancel", handlePointerUp)
+    };
+    el.addEventListener("pointerdown", handlePointerDown, { passive: false });
+    el.addEventListener("pointermove", handlePointerMove, { passive: false });
+    el.addEventListener("pointerup", handlePointerUp);
+    el.addEventListener("pointercancel", handlePointerUp);
     return () => {
-      el.removeEventListener("pointerdown", handlePointerDown)
-      el.removeEventListener("pointermove", handlePointerMove)
-      el.removeEventListener("pointerup", handlePointerUp)
-      el.removeEventListener("pointercancel", handlePointerUp)
-    }
-  }, [rerender])
+      el.removeEventListener("pointerdown", handlePointerDown);
+      el.removeEventListener("pointermove", handlePointerMove);
+      el.removeEventListener("pointerup", handlePointerUp);
+      el.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [rerender]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -511,13 +544,23 @@ export default function App() {
       e.preventDefault();
       if (e.deltaY === 0) return;
       const msPerPx = MS_PER_DAY / timeline.current.ppd;
-      timeline.current.zdt = timeline.current.zdt.add({ milliseconds: Math.round((e.clientX - timeline.current.x) * msPerPx) });
+      timeline.current.zdt = timeline.current.zdt.add({
+        milliseconds: Math.round((e.clientX - timeline.current.x) * msPerPx),
+      });
       timeline.current.x = e.clientX;
-      timeline.current.ppd = Math.max(MIN_PPD, Math.min(MAX_PPD, timeline.current.ppd * Math.exp(-e.deltaY * WHEEL_SENSITIVITY)));
+      timeline.current.ppd = Math.max(
+        MIN_PPD,
+        Math.min(
+          MAX_PPD,
+          timeline.current.ppd * Math.exp(-e.deltaY * WHEEL_SENSITIVITY),
+        ),
+      );
       rerender();
     };
     el.addEventListener("wheel", handleWheel, { passive: false });
-    return () => { el.removeEventListener("wheel", handleWheel); };
+    return () => {
+      el.removeEventListener("wheel", handleWheel);
+    };
   }, [rerender]);
 
   const lastClickTime = useRef(0);
@@ -525,9 +568,19 @@ export default function App() {
     const now = Date.now();
     if (now - lastClickTime.current < 300) {
       const msPerPx = MS_PER_DAY / timeline.current.ppd;
-      timeline.current.zdt = timeline.current.zdt.add({ milliseconds: Math.round((event.clientX - timeline.current.x) * msPerPx) });
+      timeline.current.zdt = timeline.current.zdt.add({
+        milliseconds: Math.round(
+          (event.clientX - timeline.current.x) * msPerPx,
+        ),
+      });
       timeline.current.x = event.clientX;
-      timeline.current.ppd = Math.max(MIN_PPD, Math.min(MAX_PPD, timeline.current.ppd * Math.exp(500 * WHEEL_SENSITIVITY)));
+      timeline.current.ppd = Math.max(
+        MIN_PPD,
+        Math.min(
+          MAX_PPD,
+          timeline.current.ppd * Math.exp(500 * WHEEL_SENSITIVITY),
+        ),
+      );
       rerender();
     }
     lastClickTime.current = now;
@@ -563,14 +616,37 @@ export default function App() {
 
   useEffect(() => {
     if (!mapInstance.current) return;
+    const m = mapInstance.current;
+
+    const updateBounds = () => {
+      setBounds(m.getBounds());
+    };
+
+    updateBounds();
+
+    m.on("moveend zoomend", updateBounds);
+    return () => {
+      m.off("moveend zoomend", updateBounds);
+    };
+  }, []);
+
+  const visibleEvents = useMemo(
+    () =>
+      EVENTS.filter((event) =>
+        event.isVisible(
+          bounds,
+          layout.startMilliseconds,
+          layout.endMilliseconds,
+        ),
+      ),
+    [bounds, layout.startMilliseconds, layout.endMilliseconds],
+  );
+
+  useEffect(() => {
+    if (!mapInstance.current) return;
 
     eventMarkersRef.current.forEach((marker) => marker.remove());
     eventMarkersRef.current = [];
-
-    const currentBounds = bounds || L.latLngBounds(EVENTS.map((e) => e.latlng));
-    const visibleEvents = EVENTS.filter((event) =>
-      event.isVisible(currentBounds, layout.startMilliseconds, layout.endMilliseconds),
-    );
 
     visibleEvents.forEach((event) => {
       const icon = L.divIcon({
@@ -584,14 +660,9 @@ export default function App() {
         .bindPopup(event.title);
       eventMarkersRef.current.push(marker);
     });
-  }, [bounds]);
+  }, [visibleEvents]);
 
-  const eventBadges = EVENTS.flatMap((e) => e.badges);
-  const visibleEventBadges = eventBadges.filter(
-    (badge) =>
-      badge.end.epochMilliseconds > layout.startMilliseconds &&
-      badge.start.epochMilliseconds < layout.endMilliseconds,
-  );
+  const visibleEventBadges = visibleEvents.flatMap((e) => e.badges);
 
   const p = 4;
   const h = 22;
