@@ -24,7 +24,7 @@ Ich würde mich freuen, wenn du mich auf dieser Reise begleitest, denn am Ende w
 
 ## LinkedIn Posts
 
-### Wie nenne ich mich auf Social Media?
+### [Wie nenne ich mich auf Social Media?](https://www.linkedin.com/feed/update/urn:li:activity:7453194637000978434)
 
 Ich habe ein Problem, vielleicht kennt ihr es ja 🤷
 
