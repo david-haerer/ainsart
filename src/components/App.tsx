@@ -524,8 +524,10 @@ export default function App() {
   const handleTimelineClick = (event: React.MouseEvent<HTMLDivElement>) => {
     const now = Date.now();
     if (now - lastClickTime.current < 300) {
-      timeline.current.x = event.clientX
-      timeline.current.zdt = Temporal.Now.zonedDateTimeISO();
+      const msPerPx = MS_PER_DAY / timeline.current.ppd;
+      timeline.current.zdt = timeline.current.zdt.add({ milliseconds: Math.round((event.clientX - timeline.current.x) * msPerPx) });
+      timeline.current.x = event.clientX;
+      timeline.current.ppd = Math.max(MIN_PPD, Math.min(MAX_PPD, timeline.current.ppd * Math.exp(500 * WHEEL_SENSITIVITY)));
       rerender();
     }
     lastClickTime.current = now;
